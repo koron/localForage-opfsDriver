@@ -38,7 +38,7 @@ async function _openDirBase(path) {
   for (const entry of entries.slice(0, -1)) {
     dir = await dir.getDirectoryHandle(entry);
   }
-  base = entries[entries.length - 1]];
+  base = entries[entries.length - 1];
   return { dir, base };
 }
 
@@ -92,7 +92,7 @@ async function iterate(iterator, callback) {
     await this.ready();
     const dir = await _openDir(this._dbInfo.pathPrefix);
     let iterationNumber = 1;
-    const value = await _walkDir(dir, '', (fileHandle, path) => {
+    const value = await _walkDir(dir, '', async (fileHandle, path) => {
       const file = await fileHandle.getFile();
       return iterator(file, path, iterationNumber++);
     });
@@ -306,7 +306,7 @@ async function dropInstance(options, callback) {
 const opfsDriver = {
   _driver: 'opfsDriver',
   _initStorage: _initStorage,
-  _support: _support(),
+  _support: await _support(),
   iterate: iterate,
   getItem: getItem,
   setItem: setItem,

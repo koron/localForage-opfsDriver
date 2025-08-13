@@ -32,19 +32,19 @@ async function _mkdirAll(path) {
   return _openDir(path, { create: true })
 }
 
-async function _openDirBase(path) {
+async function _openDirBase(path, options={}) {
   let dir = await navigator.storage.getDirectory();
   const entries = _splitPath(path);
   for (const entry of entries.slice(0, -1)) {
-    dir = await dir.getDirectoryHandle(entry);
+    dir = await dir.getDirectoryHandle(entry, options);
   }
-  base = entries[entries.length - 1];
+  const base = entries[entries.length - 1];
   return { dir, base };
 }
 
 async function _openFile(path, options={}) {
-  const { dir, base } = await _openDirBase(path);
-  await dir.getFileHandle(base, options);
+  const { dir, base } = await _openDirBase(path, options);
+  return dir.getFileHandle(base, options);
 }
 
 async function _walkDir(dir, dirPath, iter) {
@@ -54,7 +54,7 @@ async function _walkDir(dir, dirPath, iter) {
     if (handle instanceof FileSystemDirectoryHandle) {
       value = await _walkDir(handle, path, iter);
     } else {
-      value = iter(handle, path);
+      value = await iter(handle, path);
     }
     if (value !== void 0) {
       return value;
@@ -94,7 +94,7 @@ async function iterate(iterator, callback) {
     let iterationNumber = 1;
     const value = await _walkDir(dir, '', async (fileHandle, path) => {
       const file = await fileHandle.getFile();
-      return iterator(file, path, iterationNumber++);
+      return await iterator(file, path, iterationNumber++);
     });
     if (callback) {
       callback(null, value);
@@ -135,7 +135,7 @@ async function setItem(key, value, callback) {
     await this.ready();
     const path = this._dbInfo.pathPrefix + _normalizeKey(key);
     const handle = await _openFile(path, { create: true });
-    const writable = handle.createWritable()
+    const writable = await handle.createWritable()
     // FIXME: serialize.
     //
     // Types to be supported:
@@ -173,7 +173,7 @@ async function removeItem(key, callback) {
   try {
     await this.ready();
     const path = this._dbInfo.pathPrefix + _normalizeKey(key);
-    const { dir, base } = _openDirBase(path);
+    const { dir, base } = await _openDirBase(path);
     await dir.removeEntry(base);
     if (callback) {
       callback(null, undefined);
@@ -207,7 +207,7 @@ async function clear(callback) {
   }
 }
 
-async function length() {
+async function length(callback) {
   try {
     await this.ready();
     const dir = await _openDir(this._dbInfo.pathPrefix);
@@ -230,13 +230,17 @@ async function length() {
 async function key(n, callback) {
   try {
     await this.ready();
-    const value = await _walkDir(dir, '', (fileHandle, path) => {
+    const dir = await _openDir(this._dbInfo.pathPrefix);
+    let value = await _walkDir(dir, '', async (fileHandle, path) => {
       if (n == 0) {
         return path;
       }
       n--;
       return;
     });
+    if (value === void 0) {
+      value = null;
+    }
     if (callback) {
       callback(null, value);
     }
@@ -249,10 +253,11 @@ async function key(n, callback) {
   }
 }
 
-async function keys() {
+async function keys(callback) {
   try {
     await this.ready();
     const keys = [];
+    const dir = await _openDir(this._dbInfo.pathPrefix);
     const value = await _walkDir(dir, '', (fileHandle, path) => {
       keys.push(path);
     })
@@ -282,7 +287,7 @@ async function dropInstance(options, callback) {
     }
     const path = (!options.storeName) ? `${options.name}` : _getKeyPrefix(options, this._defaultConfig);
     if (_splitPath(path).length > 0) {
-      const { dir, base } = _openDirBase(path);
+      const { dir, base } = await _openDirBase(path);
       await dir.removeEntry(base, { recursive: true });
     } else {
       // Remove all root entries.

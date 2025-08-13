@@ -62,6 +62,34 @@ async function _walkDir(dir, dirPath, iter) {
   }
 }
 
+// Types to be supported:
+//
+// - Array
+// - ArrayBuffer
+// - Blob
+// - Float32Array
+// - Float64Array
+// - Int8Array
+// - Int16Array
+// - Int32Array
+// - Number
+// - Object
+// - Uint8Array
+// - Uint8ClampedArray
+// - Uint16Array
+// - Uint32Array
+// - String
+
+async function _serialize(value) {
+  // TODO: serialize value;
+  return value;
+}
+
+async function _deserialize(blob) {
+  // TODO: serialize value;
+  return blob.text();
+}
+
 async function _initStorage(options) {
   await _support();
   let dbInfo = {};
@@ -94,7 +122,8 @@ async function iterate(iterator, callback) {
     let iterationNumber = 1;
     const value = await _walkDir(dir, '', async (fileHandle, path) => {
       const file = await fileHandle.getFile();
-      return await iterator(file, path, iterationNumber++);
+      const value = await _deserialize(file);
+      return await iterator(value, path, iterationNumber++);
     });
     if (callback) {
       callback(null, value);
@@ -114,11 +143,11 @@ async function getItem(key, callback) {
     const path = this._dbInfo.pathPrefix + _normalizeKey(key);
     const handle = await _openFile(path);
     const file = await handle.getFile();
-    // FIXME: deserialize.
+    const value = await _deserialize(file);
     if (callback) {
-      callback(null, file);
+      callback(null, value);
     }
-    return file;
+    return value;
   } catch (err) {
     if (callback) {
       callback(err);
@@ -136,26 +165,7 @@ async function setItem(key, value, callback) {
     const path = this._dbInfo.pathPrefix + _normalizeKey(key);
     const handle = await _openFile(path, { create: true });
     const writable = await handle.createWritable()
-    // FIXME: serialize.
-    //
-    // Types to be supported:
-    //
-    // - Array
-    // - ArrayBuffer
-    // - Blob
-    // - Float32Array
-    // - Float64Array
-    // - Int8Array
-    // - Int16Array
-    // - Int32Array
-    // - Number
-    // - Object
-    // - Uint8Array
-    // - Uint8ClampedArray
-    // - Uint16Array
-    // - Uint32Array
-    // - String
-    await writable.write(value);
+    await writable.write(await _serialize(value));
     await writable.close();
     if (callback) {
       callback(null, value);

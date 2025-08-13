@@ -7,5 +7,6 @@ Usage:
 ```javascript
 import opfsDriver from './opfsdriver.js';
 
+await localForage.defineDriver(opfsDriver);
 localforage.config({ driver: 'opfsDriver' });
 ```

@@ -62,32 +62,21 @@ async function _walkDir(dir, dirPath, iter) {
   }
 }
 
-// Types to be supported:
-//
-// - Array
-// - ArrayBuffer
-// - Blob
-// - Float32Array
-// - Float64Array
-// - Int8Array
-// - Int16Array
-// - Int32Array
-// - Number
-// - Object
-// - Uint8Array
-// - Uint8ClampedArray
-// - Uint16Array
-// - Uint32Array
-// - String
-
-async function _serialize(value) {
-  // TODO: serialize value;
-  return value;
+async function _serialize(localforage, value) {
+  const serializer = await localforage.getSerializer();
+  return new Promise((resolve, reject) => {
+    try {
+      serializer.serialize(value, v => resolve(v));
+    } catch (err) {
+      reject(err);
+    }
+  });
 }
 
-async function _deserialize(blob) {
-  // TODO: serialize value;
-  return blob.text();
+async function _deserialize(localforage, blob) {
+  const raw = await blob.text();
+  const serializer = await localforage.getSerializer();
+  return serializer.deserialize(raw);
 }
 
 async function _initStorage(options) {
@@ -122,7 +111,7 @@ async function iterate(iterator, callback) {
     let iterationNumber = 1;
     const value = await _walkDir(dir, '', async (fileHandle, path) => {
       const file = await fileHandle.getFile();
-      const value = await _deserialize(file);
+      const value = await _deserialize(this, file);
       return await iterator(value, path, iterationNumber++);
     });
     if (callback) {
@@ -143,7 +132,7 @@ async function getItem(key, callback) {
     const path = this._dbInfo.pathPrefix + _normalizeKey(key);
     const handle = await _openFile(path);
     const file = await handle.getFile();
-    const value = await _deserialize(file);
+    const value = await _deserialize(this, file);
     if (callback) {
       callback(null, value);
     }
@@ -165,7 +154,7 @@ async function setItem(key, value, callback) {
     const path = this._dbInfo.pathPrefix + _normalizeKey(key);
     const handle = await _openFile(path, { create: true });
     const writable = await handle.createWritable()
-    await writable.write(await _serialize(value));
+    await writable.write(await _serialize(this, value));
     await writable.close();
     if (callback) {
       callback(null, value);
